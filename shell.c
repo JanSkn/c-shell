@@ -75,11 +75,13 @@ int main() {
     char* args[buffer]; // enthält pro Index ein arg, args[0] = Programmname
 
     signal(SIGINT, sig_handler);
-
     int execInBackground = 0;
+    #define ANSI_COLOR_NEONGREEN "\x1b[38;2;0;255;0m"   
+    #define ANSI_COLOR_RESET "\x1b[0m"  
+
     while(1) {
         char* directory = getcwd(NULL, 0);
-		printf("%s/>", directory);
+		printf(ANSI_COLOR_NEONGREEN"%s/>"ANSI_COLOR_RESET, directory);
 
         if (fgets(input, sizeof(input), stdin) == NULL) {
             printf("\n");
