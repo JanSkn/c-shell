@@ -9,130 +9,116 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 
-#include "array.h"
-
 int buffer = 100;
+int ctrlc = 0; 
 
 void change_directory(char* path) {
-    if(chdir(path) != 0) perror("Error changing directory"); // gibt 0 bei Erfolg zurück
+    if(chdir(path) != 0) perror("Error"); 
 }
 
-void waiting(pid_t* pidArray, int pidArrayLength) {
+void waiting(char* processId[]) {
+    if(!ctrlc) {
+        int status;
+        int i = 1;
+        int proc;
+        while (processId[i] != NULL) {
+            proc = atoi(processId[i]);
+            printf("Waiting for process %d\n", proc);
+            pid_t pid = waitpid(proc, &status, 0);
+            if (pid > 0) {             
+                if (WIFEXITED(status)) {
+                    printf("[%d] TERMINATED\n", pid);
+                    printf("[%d] EXIT STATUS: %d\n", pid, WEXITSTATUS(status));
+                } 
+            }
+            
+            if (pid < 0) {
+			    perror("Error");
+			    exit(-1);
+		    }
+            i++;
+        }
+    }   
+    ctrlc = 0;
+}
+
+int run(char* input[], int execInBackground1) {
     int status;
     pid_t pid;
-    
-    for(int i = 0; i < pidArrayLength; i++) {
-        waitpid(pidArray[i], &status, 0);
-        if(WIFEXITED(status)) printf("Process %d exited.\n", pidArray[i]);
-    }
-}
 
-int run(char* input, int execInBackground) {
-    // To Do: mit strtok nach | slicen, einzelne teile in array speichern, pipen, execvp - problem: programmparameter? - ganzer Pfad nicht nötig, da cd
-    char* inputToken = strtok(input, " | "); // ganzer String, wenn keine Pipe enthalten, Trennzeichen inkl. Leerzeichen, damit nicht im Befehl
-    
-    if(input[0] == '.' && input[1] == '/') {
-        inputToken = input + strlen("./");
-        //printf("prog: %s\n", inputToken);
-        //execvp
-        // return
-        // denn dann nicht weiter zur pipe da entweder | oder ./
+    if(pid < 0) {
+        perror("Error");
+        exit(-1);
     }
     
-    char* inputArray[buffer];
-    int iterator = 0;
-    while(inputToken != NULL) { // gibt Pointer auf erstes Token im String zurück --> inputToken = strtok(NULL, " "); aktualisieren
-        inputArray[iterator++] = inputToken;
-        inputToken = strtok(NULL, " | "); 
+    if((pid = fork()) == 0) {
+        execvp(input[0], input); 
+        exit(-1);
+    }
+    
+    // parent
+    if(execInBackground1 != 1) {
+        waitpid(pid, &status, 0);
+    } else {
+        printf("[%u]\n", pid);
     }
 
-    int pipe_fd[2];
-    for(int i = 0; i < iterator; i++) {
-        pipe(pipe_fd);
-        pid_t pid = fork();
-        if(pid < 0) {
-            fprintf(stderr, "Error forking\n");
-            exit(-2);
-        }
-        if(pid == 0) {
-            dup2(pipe_fd[1], STDOUT_FILENO);
-            close(pipe_fd[0]); // wird nicht benutzt
-            close(pipe_fd[1]); // schließen, da jetzt alles auch bei STDOUT_FILENO
-            char* args[buffer];
-            int programIterator = 0;
-            char* programToken = strtok(inputArray[i], " "); // jeweils erstes Token zwischen Pipe: Programmname
-            while(programToken != NULL) { // gibt Pointer auf erstes Token im String zurück --> inputToken = strtok(NULL, " "); aktualisieren
-                args[programIterator++] = inputToken; // --> die restlichen Tokens zwischen Pipe sind die args
-                programToken = strtok(NULL, " "); 
-            }
-            execvp(args[0], args); // problem: args ohne args[0] sind die args
-            perror("Error executing program:\n");
-            exit(-1);
-        }
-        // hier parent:
-        if(execInBackground == 0) {
-            waitpid(pid, NULL, 0);
-        }
-    }
-    //printf("%s\n",inputArray[0]);
+    return WEXITSTATUS(status);
 }
 
 void sig_handler(int signo) {
-    const char msg[] = "CTRL + C - stop waiting\n";
-    write(2, msg, sizeof(msg) - 1); // globale Variable hinzufügen, die auf 0 gesetzt wird undin funktion waiting nur ausgeführt solange !=0?
-
+    ctrlc = 1;
 }
 
 int main() {
     char input[buffer]; // Input mit Puffer
-    char input_copy[buffer]; // Kopie, da strtok String verändert
+    char* args[buffer]; // enthält pro Index ein arg, args[0] = Programmname
 
     signal(SIGINT, sig_handler);
 
+    int execInBackground = 0;
     while(1) {
-        int execInBackground = 0;
-
         char* directory = getcwd(NULL, 0);
-		printf("%s>", directory);
+		printf("%s/>", directory);
 
         if (fgets(input, sizeof(input), stdin) == NULL) {
             printf("\n");
-            break;
+            break; 
         }
-        
-        strcpy(input_copy, input);
-        char* firstWord = strtok(input_copy, " ");
 
         input[strcspn(input, "\n")] = '\0'; // Enter aus Input entfernen
 
-        if(strcmp(input, "exit") == 0) break;
+        char* token;
+        token = strtok(input, " ");
+        int i = 0;
+        while(token != NULL) {
+            args[i++] = token;
+            token = strtok(NULL, " ");
+        }
+        args[i] = NULL; // kennzeichnet Ende der Liste von Token
+
+        if(strcmp(input, "exit") == 0) {
+            break;
+        }
+        if(strcmp(input, "cd") == 0) {
+            change_directory(args[1]);
+            continue;
+        }
+        if(strcmp(args[i - 1], "&") == 0) {  // *args[i-1] == '&' äquivalent
+            args[i - 1] = "\0"; // "&" ersetzEn
+            run(args, 1); // "&" --> im Hintergrund ausführen
+            execInBackground = 0; // wieder zurücksetzen für nächsten Durchlauf
+            continue;
+        }
+        if(strcmp(input, "wait") == 0) {
+            waiting(args); // ganze Zeile inkl. "wait" wird übergeben, daher in waiting(): ab Index 1 iterieren
+            continue;
+        }
         
-        if(strcmp(firstWord, "cd") == 0) {
-            directory = input + strlen("cd") + 1; // Pointer zeigt auf Eingabe nach cd, + 1, damit kein Leerzeichen vor Pfad
-            change_directory(directory);
-        }
-
-        if(input[strlen(input) - 1] == '&') {
-            input[strlen(input) - 1] = '\0'; 
-            execInBackground = 1;
-        }
-
-        //if(input[0] == '.' && input[1] == '/') {
-        //    directory = input + strlen("./"); // Pointer zeigt auf Eingabe nach ./
-        //}
-
-        if(strcmp(firstWord, "wait") == 0) {
-            char* pids = input + strlen("wait") + 1; // Pointer zeigt auf Eingabe nach wait, + 1, damit kein Leerzeichen vor erstem Wert
-            char* pidsToken = strtok(pids, " ");
-            pid_t pidArray[buffer];
-            int iterator = 0;
-            while(pidsToken != NULL) { // gibt Pointer auf erstes Token im String zurück --> pidsToken = strtok(NULL, " "); aktualisieren
-                pidArray[iterator++] = (int)pidsToken;
-                pidsToken = strtok(NULL, " "); 
-            }
-            waiting(pidArray, iterator);
-        }   
-
-        run(input, execInBackground); // wenn alle anderen eingaben nicht: dann programm ausführen --> noch ./ bereinigen, falls keine pipe
+        execInBackground = 0;
+        run(args, execInBackground);
+    
+        // TODO: Piping
     }
+    return 0;   
 }
