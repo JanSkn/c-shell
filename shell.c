@@ -33,13 +33,56 @@ void waiting(char* processId[]) {
             }
             
             if (pid < 0) {
-			    perror("Error");
-			    exit(-1);
-		    }
+                perror("Error");
+                exit(-1);
+            }
             i++;
         }
     }   
     ctrlc = 0;
+}
+
+void execute_pipe(char* prog1[], char* prog2[]) {
+    int pipefd[2];
+    pid_t pid1, pid2;
+
+    // Pipe erstellen
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        exit(-1);
+    }
+
+    // Fork the first process
+    pid1 = fork();
+    if (pid1 == -1) {
+        perror("fork");
+        exit(-1);
+    } else if (pid1 == 0) {
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        execvp(prog1[0], prog1);
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    }
+
+    pid2 = fork();
+    if (pid2 == -1) {
+        perror("fork");
+        exit(-1);
+    } else if (pid2 == 0) {
+        close(pipefd[1]);
+        dup2(pipefd[0], STDIN_FILENO);
+        execvp(prog2[0], prog2);
+        perror("execvp");
+        exit(-1);
+    }
+
+    // parent 
+    close(pipefd[0]);
+    close(pipefd[1]);
+
+    waitpid(pid1, NULL, 0);
+    waitpid(pid2, NULL, 0);
 }
 
 int run(char* input[], int execInBackground1) {
@@ -52,8 +95,26 @@ int run(char* input[], int execInBackground1) {
     }
     
     if((pid = fork()) == 0) {
-        execvp(input[0], input); 
-        exit(-1);
+        int i = 0;
+        int pipeIndex = -1;
+        while (input[i] != NULL) {
+            if (strcmp(input[i], "|") == 0) {
+                pipeIndex = i;
+                break;
+            }
+            i++;
+        }
+
+        if (pipeIndex != -1) {
+            input[pipeIndex] = NULL;
+            char** prog1 = input;                   // char* prog1[] bzw. prog2[] nicht möglich, da Array dann keine Länge zugewiesen bekommen hat
+            char** prog2 = &input[pipeIndex + 1]; // &, damit wir nicht nur Programmnamen, sondern auch args bekommen --> pointer auf Strings
+            execute_pipe(prog1, prog2);
+            exit(0);
+        } else {
+            execvp(input[0], input);
+            exit(-1);
+        }
     }
     
     // parent
@@ -81,7 +142,7 @@ int main() {
 
     while(1) {
         char* directory = getcwd(NULL, 0);
-		printf(ANSI_COLOR_NEONGREEN"%s/>"ANSI_COLOR_RESET, directory);
+        printf(ANSI_COLOR_NEONGREEN"%s/>"ANSI_COLOR_RESET, directory);
 
         if (fgets(input, sizeof(input), stdin) == NULL) {
             printf("\n");
@@ -119,8 +180,6 @@ int main() {
         
         execInBackground = 0;
         run(args, execInBackground);
-    
-        // TODO: Piping
     }
     return 0;   
 }
