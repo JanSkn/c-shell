@@ -9,14 +9,20 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 
-int buffer = 100;
+// buffer size for user input
+int buffer = 4096;
+// signal flag for Ctrl+C interruption
 int ctrlc = 0; 
 
+// change the current working directory
 void change_directory(char* path) {
     if(chdir(path) != 0) perror("Error"); 
 }
 
 void waiting(char* processId[]) {
+    /**
+     * Wait for specific processes to finish
+    */
     if(!ctrlc) {
         int status;
         int i = 1;
@@ -43,16 +49,19 @@ void waiting(char* processId[]) {
 }
 
 void execute_pipe(char* prog1[], char* prog2[]) {
+    /**
+     * Execute processes connected by a pipe
+    */
     int pipefd[2];
     pid_t pid1, pid2;
 
-    // Pipe erstellen
+    // create the pipe
     if (pipe(pipefd) == -1) {
         perror("pipe");
         exit(-1);
     }
 
-    // Fork the first process
+    // fork the first process
     pid1 = fork();
     if (pid1 == -1) {
         perror("fork");
@@ -65,6 +74,7 @@ void execute_pipe(char* prog1[], char* prog2[]) {
         exit(EXIT_FAILURE);
     }
 
+    // fork the second process
     pid2 = fork();
     if (pid2 == -1) {
         perror("fork");
@@ -77,7 +87,7 @@ void execute_pipe(char* prog1[], char* prog2[]) {
         exit(-1);
     }
 
-    // parent 
+    // parent process
     close(pipefd[0]);
     close(pipefd[1]);
 
@@ -86,6 +96,9 @@ void execute_pipe(char* prog1[], char* prog2[]) {
 }
 
 int run(char* input[], int execInBackground1) {
+    /**
+     * Run a single process or pipe two, with or without background execution
+    */
     int status;
     pid_t pid;
 
@@ -107,8 +120,8 @@ int run(char* input[], int execInBackground1) {
 
         if (pipeIndex != -1) {
             input[pipeIndex] = NULL;
-            char** prog1 = input;                   // char* prog1[] bzw. prog2[] nicht möglich, da Array dann keine Länge zugewiesen bekommen hat
-            char** prog2 = &input[pipeIndex + 1]; // &, damit wir nicht nur Programmnamen, sondern auch args bekommen --> pointer auf Strings
+            char** prog1 = input;                   
+            char** prog2 = &input[pipeIndex + 1];
             execute_pipe(prog1, prog2);
             exit(0);
         } else {
@@ -132,8 +145,10 @@ void sig_handler(int signo) {
 }
 
 int main() {
-    char input[buffer]; // Input mit Puffer
-    char* args[buffer]; // enthält pro Index ein arg, args[0] = Programmname
+    // input with buffer
+    char input[buffer];
+    // args to hold arguments, args[0] = program name 
+    char* args[buffer]; 
 
     signal(SIGINT, sig_handler);
     int execInBackground = 0;
@@ -149,7 +164,8 @@ int main() {
             break; 
         }
 
-        input[strcspn(input, "\n")] = '\0'; // Enter aus Input entfernen
+        // remove Enter from input
+        input[strcspn(input, "\n")] = '\0'; 
 
         char* token;
         token = strtok(input, " ");
@@ -158,7 +174,7 @@ int main() {
             args[i++] = token;
             token = strtok(NULL, " ");
         }
-        args[i] = NULL; // kennzeichnet Ende der Liste von Token
+        args[i] = NULL; 
 
         if(strcmp(input, "exit") == 0) {
             break;
@@ -167,14 +183,16 @@ int main() {
             change_directory(args[1]);
             continue;
         }
-        if(strcmp(args[i - 1], "&") == 0) {  // *args[i-1] == '&' äquivalent
-            args[i - 1] = "\0"; // "&" ersetzEn
-            run(args, 1); // "&" --> im Hintergrund ausführen
-            execInBackground = 0; // wieder zurücksetzen für nächsten Durchlauf
+        // check if process should be executed in background
+        if(strcmp(args[i - 1], "&") == 0) {  
+            args[i - 1] = "\0"; // replace "&" 
+            run(args, 1); // "&" --> run in background
+            execInBackground = 0; // reset
             continue;
         }
         if(strcmp(input, "wait") == 0) {
-            waiting(args); // ganze Zeile inkl. "wait" wird übergeben, daher in waiting(): ab Index 1 iterieren
+            // pass the whole line including "wait", iterate from index 1 in waiting()
+            waiting(args); 
             continue;
         }
         
