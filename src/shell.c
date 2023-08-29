@@ -100,14 +100,14 @@ int run(char* input[], int execInBackground1) {
      * Run a single process or pipe two, with or without background execution
     */
     int status;
-    pid_t pid;
+    pid_t pid = fork();
 
     if(pid < 0) {
         perror("Error");
         exit(-1);
     }
     
-    if((pid = fork()) == 0) {
+    if(pid == 0) {
         int i = 0;
         int pipeIndex = -1;
         while (input[i] != NULL) {
