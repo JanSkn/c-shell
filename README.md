@@ -10,7 +10,7 @@
   <h3 align="center">C Shell</h3>
 
   <p align="center">
-    A shell written in C.
+    A simple shell written in C.
     <br />
     <a href="https://github.com/janskn/shell"><strong>Explore the docs »</strong></a>
     <br />
@@ -71,8 +71,12 @@ and afterwards
 ```sh
    ./shell
 ```
+Or enter
+```sh
+   make run
+```
 
-Simply enter all the commands you want to get executed in the terminal.
+Once you did this you can simply enter all the commands you want to get executed in the terminal.
 Stop the program by typing exit.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
