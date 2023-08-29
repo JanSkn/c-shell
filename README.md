@@ -12,7 +12,7 @@
   <p align="center">
     A simple shell written in C.
     <br />
-    <a href="https://github.com/janskn/shell"><strong>Explore the docs »</strong></a>
+    <a href="https://github.com/janskn/c-shell"><strong>Explore the docs »</strong></a>
     <br />
     <br />
     <a href="https://github.com/janskn/c-shell/issues">Report Bug</a>
@@ -46,7 +46,7 @@ _Follow these steps to run the project._
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/janskn/shell.git
+   git clone https://github.com/janskn/c-shell.git
    ```
 2. Install the build-essential package
    ```sh
