@@ -4,7 +4,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/janskn/c-shell">
-    <img src="src/images/logo.jpg" alt="Logo" width="80" height="80">
+    <img src="https://github.com/github-images/images/blob/main/c-shell.jpg" alt="Logo" width="80" height="80">
   </a>
 
   <h3 align="center">C Shell</h3>
